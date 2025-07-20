@@ -429,62 +429,77 @@ What would you like to work on today?`,
 
   // Conversation History Management
   const saveConversationHistory = (messages: any[]) => {
-    try {
-      const history = {
-        messages: messages,
-        timestamp: new Date().toISOString(),
-        user: userName,
-        department: userDepartment
+    if (typeof window !== 'undefined') {
+      try {
+        const history = {
+          messages: messages,
+          timestamp: new Date().toISOString(),
+          user: userName,
+          department: userDepartment
+        };
+        localStorage.setItem('campus_conversation_history', JSON.stringify(history));
+      } catch (error) {
+        console.error('Error saving conversation history:', error);
       }
-      localStorage.setItem('campus_conversation_history', JSON.stringify(history))
-    } catch (error) {
-      console.error('Error saving conversation history:', error)
     }
-  }
+  };
 
   const loadConversationHistory = () => {
-    const history = localStorage.getItem('campus_conversation_history')
-    return history ? JSON.parse(history) : []
-  }
+    if (typeof window !== 'undefined') {
+      const history = localStorage.getItem('campus_conversation_history');
+      return history ? JSON.parse(history) : [];
+    }
+    return [];
+  };
 
   const saveUserExperience = (experience: any) => {
-    try {
-      const experiences = JSON.parse(localStorage.getItem('campus_user_experiences') || '[]')
-      experiences.push({
-        ...experience,
-        timestamp: new Date().toISOString(),
-        user: userName
-      })
-      // Keep only last 50 experiences to prevent storage bloat
-      if (experiences.length > 50) {
-        experiences.splice(0, experiences.length - 50)
+    if (typeof window !== 'undefined') {
+      try {
+        const experiences = JSON.parse(localStorage.getItem('campus_user_experiences') || '[]');
+        experiences.push({
+          ...experience,
+          timestamp: new Date().toISOString(),
+          user: userName
+        });
+        // Keep only last 50 experiences to prevent storage bloat
+        if (experiences.length > 50) {
+          experiences.splice(0, experiences.length - 50);
+        }
+        localStorage.setItem('campus_user_experiences', JSON.stringify(experiences));
+      } catch (error) {
+        console.error('Error saving user experience:', error);
       }
-      localStorage.setItem('campus_user_experiences', JSON.stringify(experiences))
-    } catch (error) {
-      console.error('Error saving user experience:', error)
     }
-  }
+  };
 
   const loadUserExperiences = () => {
-    return JSON.parse(localStorage.getItem('campus_user_experiences') || '[]')
-  }
+    if (typeof window !== 'undefined') {
+      return JSON.parse(localStorage.getItem('campus_user_experiences') || '[]');
+    }
+    return [];
+  };
 
   const saveUserPreferences = (prefs: any) => {
-    try {
-      const allPrefs = {
-        ...userPreferences,
-        ...prefs,
-        lastUpdated: new Date().toISOString()
+    if (typeof window !== 'undefined') {
+      try {
+        const allPrefs = {
+          ...userPreferences,
+          ...prefs,
+          lastUpdated: new Date().toISOString()
+        };
+        localStorage.setItem('campus_detailed_preferences', JSON.stringify(allPrefs));
+      } catch (error) {
+        console.error('Error saving user preferences:', error);
       }
-      localStorage.setItem('campus_detailed_preferences', JSON.stringify(allPrefs))
-    } catch (error) {
-      console.error('Error saving user preferences:', error)
     }
-  }
+  };
 
   const loadUserPreferences = () => {
-    return JSON.parse(localStorage.getItem('campus_detailed_preferences') || '{}')
-  }
+    if (typeof window !== 'undefined') {
+      return JSON.parse(localStorage.getItem('campus_detailed_preferences') || '{}');
+    }
+    return {};
+  };
 
   const handleLogout = () => {
     // Clear all user data and redirect to login
@@ -684,20 +699,25 @@ What would you like to work on today?`,
 
   // 2. Helper functions for localStorage management
   useEffect(() => {
-    // Load from localStorage on mount
-    setTodos(JSON.parse(localStorage.getItem('campus_todos') || '[]'));
-    setNotes(JSON.parse(localStorage.getItem('campus_notes') || '[]'));
-    setCustomEvents(JSON.parse(localStorage.getItem('campus_custom_events') || '[]'));
+    if (typeof window !== 'undefined') {
+      setTodos(JSON.parse(localStorage.getItem('campus_todos') || '[]'));
+    }
   }, []);
 
   useEffect(() => {
-    localStorage.setItem('campus_todos', JSON.stringify(todos));
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('campus_todos', JSON.stringify(todos));
+    }
   }, [todos]);
   useEffect(() => {
-    localStorage.setItem('campus_notes', JSON.stringify(notes));
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('campus_notes', JSON.stringify(notes));
+    }
   }, [notes]);
   useEffect(() => {
-    localStorage.setItem('campus_custom_events', JSON.stringify(customEvents));
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('campus_custom_events', JSON.stringify(customEvents));
+    }
   }, [customEvents]);
 
   // 3. Unified agenda for today
@@ -848,68 +868,23 @@ What would you like to work on today?`,
   const [syllabusExtracted, setSyllabusExtracted] = useState<any[]>([]);
 
   // Add state for academic goals and AI recommendations
-  const [academicGoals, setAcademicGoals] = useState<string[]>(() => {
-    return JSON.parse(localStorage.getItem('campus_academic_goals') || '[]') || [
-      'Complete assignments',
-      'Improve grades',
-      'Learn new topics',
-    ];
-  });
-  const [aiRecommendation, setAiRecommendation] = useState<string>("");
-
-  // Persist academic goals
+  const [academicGoals, setAcademicGoals] = useState<string[]>([
+    'Complete assignments',
+    'Improve grades',
+    'Learn new topics',
+  ]);
   useEffect(() => {
-    localStorage.setItem('campus_academic_goals', JSON.stringify(academicGoals));
-  }, [academicGoals]);
-
-  // Update analyticsData.academicGoals from state
-  useEffect(() => {
-    setAnalyticsData((prev) => ({ ...prev, academicGoals }));
-  }, [academicGoals]);
-
-  // Fix Chat Analytics: recalculate on messages change
-  useEffect(() => {
-    // Calculate analytics from conversation history
-    const history = loadConversationHistory();
-    const experiences = loadUserExperiences();
-    const allMessages = messages.length > 0 ? messages : (history.messages || []);
-    if (allMessages.length > 0) {
-      const totalMessages = allMessages.length;
-      const userMessages = allMessages.filter((m: any) => m.role === 'user').length;
-      // Analyze topics from user messages
-      const topics = allMessages
-        .filter((m: any) => m.role === 'user')
-        .map((m: any) => detectPreferredTopics(m.content))
-        .flat()
-        .filter(Boolean);
-      const topicCounts = topics.reduce((acc: any, topic: string) => {
-        acc[topic] = (acc[topic] || 0) + 1;
-        return acc;
-      }, {});
-      const topTopics = Object.entries(topicCounts)
-        .sort(([, a]: any, [, b]: any) => b - a)
-        .slice(0, 5)
-        .map(([topic]) => topic);
-      // Calculate engagement score
-      const engagement = Math.min(100, Math.round((userMessages / totalMessages) * 100));
-      // Study sessions (conversations about studying)
-      const studySessions = (experiences || []).filter((exp: any) =>
-        exp.content.toLowerCase().includes('study') ||
-        exp.content.toLowerCase().includes('homework') ||
-        exp.content.toLowerCase().includes('assignment')
-      ).length;
-      setAnalyticsData((prev) => ({
-        ...prev,
-        totalMessages,
-        averageResponseTime: 2.5, // Placeholder
-        topTopics,
-        conversationTrends: [],
-        userEngagement: engagement,
-        studySessions,
-        academicGoals,
-      }));
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem('campus_academic_goals');
+      if (stored) setAcademicGoals(JSON.parse(stored));
     }
-  }, [messages, academicGoals]);
+  }, []);
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('campus_academic_goals', JSON.stringify(academicGoals));
+    }
+  }, [academicGoals]);
+  const [aiRecommendation, setAiRecommendation] = useState<string>("");
 
   // Handler for adding a new academic goal
   const [newGoal, setNewGoal] = useState("");
