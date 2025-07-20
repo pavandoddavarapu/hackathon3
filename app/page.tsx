@@ -58,9 +58,6 @@ import CampusMap from "@/components/campus-map"; // Add this import at the top
 import { AdvancedAnalytics } from "@/lib/advanced-analytics"; // Import AdvancedAnalytics
 import { getSchedule, saveSchedule, ScheduleEvent } from "@/lib/data-store"
 import { mockStudentPerformanceData } from "@/lib/student-performance-data"; // Import mock data
-// @ts-ignore
-import * as pdfjsLib from 'pdfjs-dist/build/pdf';
-import { createWorker } from 'tesseract.js'
 import { v4 as uuidv4 } from "uuid"
 
 interface VoiceSettings {
@@ -784,7 +781,10 @@ What would you like to work on today?`,
             });
           }
         });
-        setCustomEvents(prev => [...prev, ...events]);
+        setCustomEvents(prev => [
+          ...prev,
+          ...events.filter((e): e is { id: string; title: string; start: string; end: string } => e !== null)
+        ]);
         setIcsImportError("");
       } catch (err) {
         setIcsImportError("Failed to import calendar events.");
@@ -1916,16 +1916,19 @@ What would you like to work on today?`,
                   let noticeText = form.noticeText.value;
                   if (!noticeText && form.noticePdf.files[0]) {
                     // PDF upload
-                    const file = form.noticePdf.files[0];
-                    const arrayBuffer = await file.arrayBuffer();
-                    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-                    let text = '';
-                    for (let i = 1; i <= pdf.numPages; i++) {
-                      const page = await pdf.getPage(i);
-                      const content = await page.getTextContent();
-                      text += content.items.map((item: any) => item.str).join(' ') + '\n';
+                    if (typeof window !== 'undefined') {
+                      const pdfjsLib = await import('pdfjs-dist'); // <-- use 'pdfjs-dist' for dynamic import
+                      const file = form.noticePdf.files[0];
+                      const arrayBuffer = await file.arrayBuffer();
+                      const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+                      let text = '';
+                      for (let i = 1; i <= pdf.numPages; i++) {
+                        const page = await pdf.getPage(i);
+                        const content = await page.getTextContent();
+                        text += content.items.map((item: any) => item.str).join(' ') + '\n';
+                      }
+                      noticeText = text;
                     }
-                    noticeText = text;
                   }
                   // Summarize: 3-point summary (simple local logic)
                   const lines = noticeText.split(/\n|\./).map((l: string) => l.trim()).filter(Boolean);
@@ -2014,21 +2017,27 @@ What would you like to work on today?`,
                   let text = '';
                   if (form.syllabusPdf.files[0]) {
                     // PDF
-                    const file = form.syllabusPdf.files[0];
-                    const arrayBuffer = await file.arrayBuffer();
-                    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-                    for (let i = 1; i <= pdf.numPages; i++) {
-                      const page = await pdf.getPage(i);
-                      const content = await page.getTextContent();
-                      text += content.items.map((item: any) => item.str).join(' ') + '\n';
+                    if (typeof window !== 'undefined') {
+                      const pdfjsLib = await import('pdfjs-dist'); // <-- use 'pdfjs-dist' for dynamic import
+                      const file = form.syllabusPdf.files[0];
+                      const arrayBuffer = await file.arrayBuffer();
+                      const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+                      for (let i = 1; i <= pdf.numPages; i++) {
+                        const page = await pdf.getPage(i);
+                        const content = await page.getTextContent();
+                        text += content.items.map((item: any) => item.str).join(' ') + '\n';
+                      }
                     }
                   } else if (form.syllabusImg.files[0]) {
                     // Image OCR
-                    const file = form.syllabusImg.files[0];
-                    const worker = await createWorker('eng');
-                    const { data } = await worker.recognize(file);
-                    text = data.text;
-                    await worker.terminate();
+                    if (typeof window !== 'undefined') {
+                      const { createWorker } = await import('tesseract.js');
+                      const file = form.syllabusImg.files[0];
+                      const worker = await createWorker('eng');
+                      const { data } = await worker.recognize(file);
+                      text = data.text;
+                      await worker.terminate();
+                    }
                   }
                   // Extract events: look for lines with dates and event names
                   const lines = text.split(/\n|\./).map(l => l.trim()).filter(Boolean);
@@ -2046,7 +2055,10 @@ What would you like to work on today?`,
                     }
                     return null;
                   }).filter(Boolean);
-                  setCustomEvents(prev => [...prev, ...events]);
+                  setCustomEvents(prev => [
+                    ...prev,
+                    ...events.filter((e: any) => e && e.id && e.title && e.start && e.end && e.type)
+                  ]);
                   setSyllabusExtracted(events);
                 }} className="space-y-2">
                   <div>Upload PDF: <input type="file" name="syllabusPdf" accept="application/pdf" /></div>
